@@ -1,0 +1,574 @@
+https://partner.cloudskillsboost.google/focuses/14667?parent=catalog
+
+Configure cluster access for kubectl
+If you haven't already, open up a new Cloud Shell session. Run the following command to set environment variables for the zone and cluster names:
+Set the Kubernetes cluster name
+
+export CLUSTER_NAME=central
+Copied!
+Set the Region
+
+export CLUSTER_REGION=us-central1
+Copied!
+Set the Project
+
+export GCLOUD_PROJECT=$(gcloud config get-value project)
+Copied!
+Now configure kubectl command line access by running the following command:
+gcloud container clusters \
+  get-credentials $CLUSTER_NAME \
+  --region $CLUSTER_REGION \
+  --project $GCLOUD_PROJECT
+Copied!
+Install the demo profile
+istioctl install --set profile=demo -y
+Copied!
+Clone the Official Istio repo
+git clone https://github.com/istio/istio.git
+Copied!
+Apply the Istio sample addons e.g. Prometheus, Grafana, etc
+cd istio && kubectl apply -f samples/addons
+Copied!
+Verify cluster and Istio installation
+Check that your cluster is up and running:
+
+gcloud container clusters list
+Copied!
+Output (do not copy)
+
+NAME: central
+LOCATION: us-central1
+MASTER_VERSION: 1.20.10-gke.301
+MASTER_IP: 104.154.230.235
+MACHINE_TYPE: n1-standard-2
+NODE_VERSION: 1.20.10-gke.301
+NUM_NODES: 3
+STATUS: RUNNING
+Move on only when the cluster's status is set to RUNNING.
+
+Ensure the following Kubernetes services are deployed: istio-egressgateway, istio-ingressgateway and istiod. You'll also see other deployed services.
+
+kubectl get service -n istio-system
+Copied!
+Output (do not copy)
+
+NAME                   TYPE           CLUSTER-IP      EXTERNAL-IP     PORT(S)                                                                      AGE
+grafana                ClusterIP      10.208.14.57    <none>          3000/TCP                                                                     39s
+istio-egressgateway    ClusterIP      10.208.5.194    <none>          80/TCP,443/TCP,15443/TCP                                                     2m12s
+istio-ingressgateway   LoadBalancer   10.208.10.171   34.69.247.210   15021:30346/TCP,80:30077/TCP,443:30054/TCP,31400:31141/TCP,15443:31957/TCP   2m12s
+istiod                 ClusterIP      10.208.10.212   <none>          15010/TCP,15012/TCP,443/TCP,15014/TCP                                        2m23s
+jaeger-collector       ClusterIP      10.208.4.67     <none>          14268/TCP,14250/TCP,9411/TCP                                                 34s
+kiali                  ClusterIP      10.208.12.27    <none>          20001/TCP,9090/TCP                                                           29s
+prometheus             ClusterIP      10.208.11.127   <none>          9090/TCP                                                                     26s
+tracing                ClusterIP      10.208.12.31    <none>          80/TCP,16685/TCP                                                             35s
+zipkin                 ClusterIP      10.208.9.65     <none>          9411/TCP                                                                     35s
+Ensure the corresponding Kubernetes pods are deployed and all containers are up and running: istio-egressgateway-, istio-ingressgateway- and istiod-.
+
+kubectl get pods -n istio-system
+Copied!
+Output (do not copy)
+
+NAME                                    READY   STATUS    RESTARTS   AGE
+grafana-6c5dc6df7c-84kts                1/1     Running   0          27m
+istio-egressgateway-59c6bd6db4-gpz6h    1/1     Running   0          29m
+istio-ingressgateway-78cc8f99ff-d4hbc   1/1     Running   0          29m
+istiod-8d4f5cc85-xkzb4                  1/1     Running   0          29m
+jaeger-9dd685668-n2zx8                  1/1     Running   0          27m
+kiali-548475845-rpd64                   1/1     Running   0          27m
+prometheus-699b7cc575-t6xcr             2/2     Running   0          27m
+Deploy Hipster Shop
+Now set up the Hipster Shop sample microservices application and explore the app.
+
+Download lab files from a GitHub repo
+From Cloud Shell, clone the lab repo:
+
+cd $LAB_DIR
+Copied!
+git clone https://github.com/GoogleCloudPlatform/istio-samples.git
+Copied!
+cd istio-samples/security-intro
+Copied!
+Deploy the Hipster Shop application
+Hipster Shop Overview
+In this lab you will deploy the Hipster Shop application, a sample 10-tier microservices application, within a single Kubernetes cluster: central. The application is a web-based e-commerce app where users can browse items, add them to the cart, and purchase them.
+
+External user requests start in the Frontend service, and subsequent requests are issued to other microservices.
+
+Hipster Architecture Diagram
+
+Deploy the Hipster Shop application
+Retrieve the .yaml which describes the Hipster Shop application:
+
+mkdir ./hipstershop
+Copied!
+curl -o ./hipstershop/kubernetes-manifests.yaml https://raw.githubusercontent.com/GoogleCloudPlatform/microservices-demo/master/release/kubernetes-manifests.yaml
+Copied!
+Look at the .yaml:
+
+cat ./hipstershop/kubernetes-manifests.yaml
+Copied!
+Review the many Deployments and Services used by Hipster Shop. Look for containers to see that each Deployment, has one container, for each version of each service in the application.
+
+Inject Istio proxy sidecars to the .yaml using istioctl:
+
+istioctl kube-inject -f hipstershop/kubernetes-manifests.yaml -o ./hipstershop/kubernetes-manifests-withistio.yaml
+Copied!
+Look at the .yaml with Istio proxy sidecars injected:
+
+cat ./hipstershop/kubernetes-manifests-withistio.yaml
+Copied!
+Now, when you scroll up, and look for containers, you can see extra configuration describing the proxy sidecar containers that will be deployed.
+
+istioctl kube-inject takes a Kubernetes YAML file as input, and outputs a version of that YAML which includes the Istio proxy.
+
+You can look at one of the Deployments in the output from istio kube-inject. It includes a second container, the Istio sidecar, along with all the configuration necessary.
+
+In Cloud Shell, use the following command to deploy the application Pods along with injected proxy sidecars:
+
+kubectl apply -f ./hipstershop/kubernetes-manifests-withistio.yaml
+Copied!
+Output (do not copy)
+
+deployment.apps/emailservice created
+service/emailservice created
+deployment.apps/checkoutservice created
+service/checkoutservice created
+deployment.apps/recommendationservice created
+service/recommendationservice created
+deployment.apps/frontend created
+service/frontend created
+service/frontend-external created
+deployment.apps/paymentservice created
+service/paymentservice created
+deployment.apps/productcatalogservice created
+service/productcatalogservice created
+deployment.apps/cartservice created
+service/cartservice created
+deployment.apps/loadgenerator created
+deployment.apps/currencyservice created
+service/currencyservice created
+deployment.apps/shippingservice created
+service/shippingservice created
+deployment.apps/redis-cart created
+service/redis-cart created
+deployment.apps/adservice created
+service/adservice created
+Click Check my progress to verify the objective.
+
+Assessment Completed!
+Deploy the application Pods along with injected proxy sidecars
+Assessment Completed!
+Retrieve the .yaml which describes the HipsterShop service mesh configuration model:
+
+curl -o ./hipstershop/istio-manifests.yaml https://raw.githubusercontent.com/GoogleCloudPlatform/microservices-demo/master/release/istio-manifests.yaml
+Copied!
+Look at the .yaml:
+
+cat hipstershop/istio-manifests.yaml
+Copied!
+Output (do not copy)
+
+apiVersion: networking.istio.io/v1alpha3
+kind: Gateway
+metadata:
+  name: frontend-gateway
+spec:
+  selector:
+    istio: ingressgateway # use Istio default gateway implementation
+  servers:
+  - port:
+      number: 80
+      name: http
+      protocol: HTTP
+    hosts:
+    - "*"
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: VirtualService
+metadata:
+  name: frontend-ingress
+spec:
+  hosts:
+  - "*"
+  gateways:
+  - frontend-gateway
+  http:
+  - route:
+    - destination:
+        host: frontend
+        port:
+          number: 80
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: VirtualService
+metadata:
+  name: frontend
+spec:
+  hosts:
+  - "frontend.default.svc.cluster.local"
+  http:
+  - route:
+    - destination:
+        host: frontend
+        port:
+          number: 80
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: ServiceEntry
+metadata:
+  name: allow-egress-googleapis
+spec:
+  hosts:
+  - "accounts.google.com" # Used to get token
+  - "*.googleapis.com"
+  ports:
+  - number: 80
+    protocol: HTTP
+    name: http
+  - number: 443
+    protocol: HTTPS
+    name: https
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: ServiceEntry
+metadata:
+  name: allow-egress-google-metadata
+spec:
+  hosts:
+  - metadata.google.internal
+  addresses:
+  - 169.254.169.254 # Compute Engine metadata server
+  ports:
+  - number: 80
+    name: http
+    protocol: HTTP
+  - number: 443
+    name: https
+    protocol: HTTPS
+---
+Review the many mesh objects including a Gateway, VirtualServices, and ServiceEntries that describe the initial mesh service access.
+
+In Cloud Shell, deploy the Istio service mesh configuration:
+
+kubectl apply -f hipstershop/istio-manifests.yaml
+Copied!
+Output (do not copy)
+
+gateway.networking.istio.io/frontend-gateway created
+virtualservice.networking.istio.io/frontend-ingress created
+virtualservice.networking.istio.io/frontend created
+serviceentry.networking.istio.io/allow-egress-googleapis created
+serviceentry.networking.istio.io/allow-egress-google-metadata created
+Click Check my progress to verify the objective.
+
+Assessment Completed!
+Deploy the Istio service mesh configuration
+Assessment Completed!
+Check that all pods are Running and Ready:
+
+kubectl get pods -n default
+Copied!
+Output (do not copy)
+
+NAME                                     READY   STATUS
+adservice-ddd7f74d6-spwvg                2/2     Running
+cartservice-6f7f69994f-p7mvh             2/2     Running
+checkoutservice-665c778458-gsx47         2/2     Running
+currencyservice-7b859f55d7-h6wzp         2/2     Running
+emailservice-7c5c5947b-f5mqt             2/2     Running
+frontend-7fc6677c68-9zpkl                2/2     Running
+loadgenerator-58864d6d69-m4ltc           2/2     Running
+paymentservice-778d7b68f6-z4n6s          2/2     Running
+productcatalogservice-6c96cd8796-77g7p   2/2     Running
+recommendationservice-594c9bb47b-fdhkg   2/2     Running
+redis-cart-c65b5fcc8-j66wd               2/2     Running
+shippingservice-66cd456564-xtt58         2/2     Running
+Each pod has 2 containers because each pod now has the injected Istio sidecar proxy. (The cartservice and redis pods live in the cart namespace, but will not be used for the purposes of this lab.)
+
+Use the Hipster Shop application
+Open Hipster and explore the application.
+
+Get the Istio ingress gateway IP address.
+
+kubectl get -n istio-system service istio-ingressgateway -o jsonpath='{.status.loadBalancer.ingress[0].ip}';echo
+Copied!
+Output (Do not copy)
+
+104.197.97.256
+Your IP will be different. Use this IP to access Hipster in the next Task.
+
+Copy and paste the Istio ingress gateway IP address to a web browser tab.
+
+You should see the Hipster Shop home page, at http://[EXTERNAL_IP].
+
+Hipster Shop UI
+
+Verify that the Hipster app is fully functional by browsing the products, adding products to your cart, checking out, etc.
+
+Now you're ready to enforce security policies for this application.
+
+Understand authentication and enable service-to-service authentication with mTLS
+In this task, you enable service-to-service authentication with mTLS, for a single service, then for an entire namespace.
+
+Authentication refers to identity: who is this service? Who is this end-user? Can I trust that they are who they say they are? Authentication provides strong identity and secure communication.
+
+One benefit of using Istio that it provides uniformity for both service-to-service and end-user-to-service authentication. Istio abstracts away authentication from your application code, by tunneling all service-to-service communication through the Envoy sidecar proxies.
+
+And by using a centralized Public-Key Infrastructure, Istio provides consistency to make sure authentication is set up properly across your mesh.
+
+Further, Istio allows you to adopt mTLS on a per-service basis, or easily toggle end-to-end encryption for your entire mesh.
+
+Open Kiali to watch security changes
+Use the Kiali Graph panel, with Security to visually see mTLS settings.
+
+In Cloud Shell, set up port-forwarding for Kiali:
+
+kubectl -n istio-system port-forward \
+    $(kubectl -n istio-system get pod -l app=kiali -o jsonpath='{.items[0].metadata.name}') 8080:20001
+Copied!
+This leaves the port-forwarding command running in Cloud Shell.
+
+Open the Kiali UI:
+
+Click the Web preview button in the Cloud Shell toolbar
+Click Preview on Port 8080
+This is the Overview page of your mesh. This displays all the namespaces that have services in your mesh. You can adjust the time range for overview data by adjusting the dropdown at the top of the page that is initialized to Last 1m.
+
+View the default namespace service graph visualization
+Click Graph on the left menu panel.
+
+Click Select Namespaces, then check default to view the service graph for the default namespace, which holds your running Hipstershop services.
+
+You can use the bottom toolbar to resize the graph rendering.
+
+Click the Display dropdown, and check the Security box.
+
+Notice that in permissive mode, if you move your mouse over the frontend, no locks appear on the service graph.
+Kiali default
+
+After you use Hipster Shop to add products and checkout, you will see an istio-ingressgateway node in the service graph adjacent to frontend.
+
+Enable mTLS for one service: frontend
+Right now, the cluster is in PERMISSIVE mTLS mode, meaning all service-to-service ("east west") mesh traffic is unencrypted by default.
+
+First, toggle mTLS for the frontend microservice.
+
+For both inbound and outbound requests for the frontend to be encrypted, you need two Istio resources: a Policy (require TLS for inbound requests) and a DestinationRule (TLS for the frontend's outbound requests).
+
+In Cloud Shell, open another session:
+
+Click the + in the Cloud Shell tab-bar to Add Cloud Shell session.
+
+In this new session, return to the lab directory:
+
+cd ~/istio-samples/security-intro
+Copied!
+View the PeerAuthentication and DestinationRule resources:
+
+cat ./manifests/mtls-frontend.yaml
+Copied!
+Output (do not copy)
+
+apiVersion: "security.istio.io/v1beta1"
+kind: "PeerAuthentication"
+metadata:
+  name: "frontend"
+  namespace: "default"
+spec:
+  selector:
+    matchLabels:
+      app: frontend
+  mtls:
+    mode: STRICT
+---
+apiVersion: "networking.istio.io/v1alpha3"
+kind: "DestinationRule"
+metadata:
+  name: "frontend"
+spec:
+  host: "frontend.default.svc.cluster.local"
+  trafficPolicy:
+    tls:
+      mode: ISTIO_MUTUAL
+Apply the resources to the cluster:
+
+kubectl apply -f ./manifests/mtls-frontend.yaml
+Copied!
+Output (do not copy)
+
+peerauthentication.security.istio.io/frontend created
+destinationrule.networking.istio.io/frontend created
+Click Check my progress to verify the objective.
+
+Assessment Completed!
+Enable mTLS for one service: frontend
+Assessment Completed!
+Verify that mTLS is enabled for the frontend by trying to reach the frontend from the istio-proxy container of a different mesh service, within the cluster.
+
+First, try to reach frontend from productcatalogservice with plain HTTP:
+
+kubectl exec $(kubectl get pod -l app=productcatalogservice -o jsonpath={.items..metadata.name}) -c istio-proxy -- curl http://frontend:80/ -o /dev/null -s -w '%{http_code}\n'
+Copied!
+You should see:
+
+000
+command terminated with exit code 56
+Exit code 56 means "failure to receive network data" from the curl command.
+
+This is expected.
+
+Go back to the Kiali graph and look for security updates.
+
+After a few seconds, move your mouse over frontend and notice the locks in and out of the frontend service. This indicates mTLS is required for traffic inbound and outbound.
+
+Kiali locks frontend
+
+You may need to zoom in to see the locks.
+
+The TLS key and certificate for productcatalogservice comes from Istio's Citadel component, running centrally.
+
+Citadel generates keys and certs for all mesh services, even if the cluster-wide mTLS is set to PERMISSIVE.
+
+Enable mTLS for an entire namespace: default
+As an alternative to adopting mTLS for individual services, you can introduce mTLS for an entire namespace, default for example. Doing this will automatically encrypt service-to-service traffic for every Hipster Shop service running in the default namespace.
+
+In Cloud Shell, view the PeerAuthentication, and DestinationRule resources for this approach:
+
+cat ./manifests/mtls-default-ns.yaml
+Copied!
+Output (do not copy)
+
+apiVersion: "security.istio.io/v1beta1"
+kind: "PeerAuthentication"
+metadata:
+  name: "default"
+  namespace: "default"
+spec:
+  mtls:
+    mode: STRICT
+---
+# apiVersion: networking.istio.io/v1alpha3
+# kind: DestinationRule
+# metadata:
+#   name: default
+#   namespace: default
+# spec:
+#   host: '*.default.svc.cluster.local'
+#   trafficPolicy:
+#     tls:
+#       mode: ISTIO_MUTUAL
+Notice the same resources, PeerAuthentication and DestinationRule, are used for namespace-wide mTLS as were for service-specific mTLS.
+
+Apply the resources:
+
+kubectl apply -f ./manifests/mtls-default-ns.yaml
+Copied!
+Output (do not copy)
+
+peerauthentication.security.istio.io/default created
+Click Check my progress to verify the objective.
+
+Assessment Completed!
+Enable mTLS for an entire namespace: default
+Assessment Completed!
+Go back to the Kiali graph and look for security updates.
+
+After a few seconds, notice that all services in the default namespace now require mTLS for inbound and outbound traffic.
+
+Kiali locks all
+
+You can also manually enable mesh-wide mTLS by applying a MeshPolicy resource to the cluster.
+
+In this task you learned how you can incrementally adopt encrypted service communication using Istio, at your own pace, without any code changes.
+
+Enable end-user JWT authentication alongside mTLS
+After enabling service-to-service authentication in the default namespace, you can enforce end-user ("origin") authentication for the frontend service, using JSON Web Tokens (JWT).
+
+It is recommended to only use JWT authentication alongside mTLS, and not JWT by itself. This is because plaintext JWTs are not themselves encrypted, only signed. Forged or intercepted JWTs could compromise your service mesh.
+
+In this task, you build on the mutual TLS authentication already configured for the default namespace.
+
+First, update the previously created Istio Policy frontend-authn to enforce JWT authentication for inbound requests to the frontend service.
+
+View the authentication Policy resource:
+
+cat ./manifests/jwt-frontend-request.yaml
+Copied!
+Output (do not copy)
+
+apiVersion: security.istio.io/v1beta1
+kind: RequestAuthentication
+metadata:
+ name: frontend
+ namespace: default
+spec:
+  selector:
+    matchLabels:
+      app: frontend
+  jwtRules:
+  - issuer: "testing@secure.istio.io"
+    jwksUri: "https://raw.githubusercontent.com/istio/istio/release-1.5/security/tools/jwt/samples/jwks.json"
+This policy, a RequestAuthentication resource, uses Istio's test JSON Web Key Set (jwksUri) as the public key used to verify incoming JWTs. When you apply this Policy, Istio's Pilot component will pass down this public key to the frontend's sidecar proxy, which will allow it to accept or deny requests.
+
+This resource is an update to the existing frontend-authn Policy created in the last section. This is because Istio only allows one service-matching Policy to exist at a time.
+
+Apply the updated frontend Policy.
+
+kubectl apply -f ./manifests/jwt-frontend-request.yaml
+Copied!
+Output (do not copy)
+
+requestauthentication.security.istio.io/frontend created
+Set a local TOKEN variable with an invalid token.
+
+This TOKEN is used on the client-side to make requests to the frontend:
+
+TOKEN=helloworld; echo $TOKEN
+Copied!
+Check if the frontend can be reached with an invalid JWT:
+
+kubectl exec $(kubectl get pod -l app=productcatalogservice -o jsonpath={.items..metadata.name}) -c istio-proxy \
+-- curl  http://frontend:80/ -o /dev/null --header "Authorization: Bearer $TOKEN" -s -w '%{http_code}\n'
+Copied!
+Output (do not copy)
+
+000
+command terminated with exit code 56
+Exit code 56 means "failure to receive network data" from the curl command.
+
+This is expected. The invalid token was not able to be validated per the policy.
+
+View an AuthorizationPolicy resource which requires a JWT:
+
+cat ./manifests/jwt-frontend-authz.yaml
+Copied!
+This policy declares that all requests to the frontend workload must have a JWT.
+
+Output (do not copy)
+
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: require-jwt
+  namespace: default
+spec:
+  selector:
+    matchLabels:
+      app: frontend
+  action: ALLOW
+  rules:
+  - from:
+    - source:
+       requestPrincipals: ["testing@secure.istio.io/testing@secure.istio.io"]
+In this task, you observed how the frontend service uses authentication with a JWT policy and an authorization policy.
+
+Understand Istio authorization
+Authentication refers to the who by providing strong identity and secure service-to-service and end-user-to-service communication.
+
+Authorization refers to the what: what a service or user is allowed to do.
+
+Istio Authorization is designed to be simple, flexible, and high performance. Istio authorization policies are defined using .yaml and enforced by Envoy proxies running an authorization engine.
+
+AuthorizationPolicy resources include a selector and a list of rules. The selector specifies the target: which specifies to which namespace and/or workload(s) the policy applies.
+
+The rules in an AuthorizationPolicy specify who is allowed to do what under which conditions. Rules use from, to, and when lists.
